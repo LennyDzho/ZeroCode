@@ -1,0 +1,66 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>GenAI Telegram App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 2em;
+    }
+    .avatar {
+      border-radius: 50%;
+      width: 100px;
+      margin: 1em auto;
+    }
+    .container {
+      max-width: 400px;
+      margin: auto;
+    }
+    .button {
+      margin-top: 1em;
+      display: inline-block;
+      background: #0088cc;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>Загрузка...</h2>
+  <script>
+    const WebApp = window.Telegram.WebApp;
+    const user = WebApp.initDataUnsafe?.user;
+
+    if (!user || !user.id) {
+      document.body.innerHTML = "<h2>Ошибка: нет данных от Telegram</h2>";
+    } else {
+      fetch("/auth/telegram/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          id: user.id,
+          username: user.username,
+          photo_url: user.photo_url
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.body.innerHTML = `<h2>Привет, @${data.username}!</h2><p>Успешно авторизован</p>`;
+        setTimeout(() => window.location.href = "/dialogs/", 1000);  // ✅ перенаправляем на /dialogs/
+      })
+      .catch(err => {
+        document.body.innerHTML = "<h2>Ошибка при авторизации</h2>";
+      });
+    }
+  </script>
+</body>
+
+</html>

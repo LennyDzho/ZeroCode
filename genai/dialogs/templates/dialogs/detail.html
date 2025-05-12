@@ -1,0 +1,240 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ dialog.title }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f9f9f9;
+    }
+    .header {
+      padding: 1em;
+      background: #0088cc;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h2 {
+      margin: 0;
+      font-size: 1.2em;
+    }
+    .header button {
+      background: white;
+      color: #0088cc;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1em;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5em;
+    }
+    .msg {
+      background: white;
+      padding: 0.8em 1em 1em;
+      border-radius: 8px;
+      max-width: 80%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #d1ecf1;
+    }
+    .msg.model {
+      align-self: flex-start;
+      background: #e2e3e5;
+    }
+    .edit-btn {
+      margin-top: 8px;
+      background: transparent;
+      border: none;
+      color: #666;
+      font-size: 0.8em;
+      cursor: pointer;
+    }
+    .edit-form {
+      margin-top: 10px;
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .edit-form textarea {
+      width: 100%;
+      background: #c9e7f0;
+      border-radius: 6px;
+      border: 1px solid #aaa;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 0.95em;
+      overflow: hidden;
+      resize: none;
+      min-height: 60px;
+    }
+    .edit-form .edit-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .edit-form button {
+      background: #0088cc;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .edit-form .cancel-btn {
+      background: #999;
+    }
+    .input-bar {
+      display: flex;
+      padding: 1em;
+      border-top: 1px solid #ccc;
+      background: white;
+    }
+    .input-bar input {
+      flex: 1;
+      padding: 0.5em;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    .input-bar button {
+      margin-left: 10px;
+      background: #0088cc;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>{{ dialog.title }}</h2>
+    <button onclick="window.location.href='/dialogs/'">Назад</button>
+  </div>
+
+  <div class="messages" id="messages">
+    {% for msg in messages %}
+      <div class="msg {{ msg.role }}" data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
+        <span id="text-{{ msg.id }}">{{ msg.content }}</span>
+        {% if msg.role == 'user' %}
+          <div class="edit-form" id="edit-form-{{ msg.id }}">
+            <textarea id="edit-input-{{ msg.id }}" oninput="autoResize(this)">{{ msg.content }}</textarea>
+            <div class="edit-actions">
+              <button onclick="confirmEdit('{{ msg.id }}')">Сохранить</button>
+              <button class="cancel-btn" onclick="cancelEdit('{{ msg.id }}')">Отмена</button>
+            </div>
+          </div>
+          <div style="margin-top: 8px;">
+            <button class="edit-btn" onclick="toggleEditForm('{{ msg.id }}')">✏️ Редактировать</button>
+          </div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <p style="text-align:center; color: #999;">Нет сообщений</p>
+    {% endfor %}
+  </div>
+
+  <div class="input-bar">
+    <input type="text" id="messageInput" placeholder="Введите сообщение...">
+    <button id="sendButton" onclick="sendMessage()">Отправить</button>
+  </div>
+
+  <script>
+    function sendMessage() {
+      const input = document.getElementById("messageInput");
+      const content = input.value.trim();
+      if (!content) return;
+
+      input.value = "";
+
+      fetch(`/dialog/{{ dialog.id }}/send/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({ content })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert("Ошибка: " + (data.error || "неизвестная"));
+        }
+      });
+    }
+
+    function toggleEditForm(id) {
+      const form = document.getElementById(`edit-form-${id}`);
+      const text = document.getElementById(`text-${id}`);
+      const visible = form.style.display === 'block';
+      form.style.display = visible ? 'none' : 'flex';
+      text.style.display = visible ? 'inline' : 'none';
+    }
+
+    function cancelEdit(id) {
+      const form = document.getElementById(`edit-form-${id}`);
+      const text = document.getElementById(`text-${id}`);
+      form.style.display = 'none';
+      text.style.display = 'inline';
+    }
+
+    function confirmEdit(id) {
+      const textarea = document.getElementById(`edit-input-${id}`);
+      const content = textarea.value.trim();
+      if (!content) return;
+
+      fetch(`/dialog/{{ dialog.id }}/edit/${id}/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({ content })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert("Ошибка при редактировании");
+        }
+      });
+    }
+
+    function autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+
+    function getCookie(name) {
+      let value = "; " + document.cookie;
+      let parts = value.split("; " + name + "=");
+      if (parts.length === 2) return parts.pop().split(";").shift();
+    }
+  </script>
+
+</body>
+</html>

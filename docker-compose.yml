@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  django_web:
+    build:
+      context: .
+    command: python genai/manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=1
+      - DJANGO_SETTINGS_MODULE=genai.settings
+
+  telegram_bot:
+    build:
+      context: .
+    command: python bot.py
+    volumes:
+      - .:/app
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - WEBAPP_URL=${WEBAPP_URL}

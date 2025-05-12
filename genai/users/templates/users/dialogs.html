@@ -1,0 +1,246 @@
+{% load static %}
+{% load custom_tags %}
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Мои диалоги</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f9f9f9;
+    }
+
+    .header {
+      padding: 1em;
+      background: #0088cc;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h2 {
+      margin: 0;
+      font-size: 1.2em;
+    }
+
+    .btn-create {
+      background: white;
+      color: #0088cc;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .dialogs {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1em;
+    }
+
+    .dialog {
+      display: block;
+      background: white;
+      padding: 1em;
+      margin-bottom: 0.8em;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .dialog h3 {
+      margin: 0 0 0.3em 0;
+      font-size: 1em;
+    }
+
+    .dialog:hover {
+      background: #f0faff;
+    }
+
+    .dialog small {
+      color: #666;
+    }
+
+    .bottom-nav {
+      display: flex;
+      border-top: 1px solid #ccc;
+      background: #fff;
+    }
+
+    .bottom-nav a {
+      flex: 1;
+      text-align: center;
+      padding: 0.7em;
+      text-decoration: none;
+      color: #333;
+      font-size: 0.95em;
+    }
+
+    .bottom-nav a.active {
+      color: #0088cc;
+      font-weight: bold;
+    }
+
+    /* Admin panel button */
+    #adminToggle {
+      position: fixed;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #0088cc;
+      color: white;
+      border: none;
+      padding: 0.7em 1em;
+      border-radius: 0 6px 6px 0;
+      font-size: 1.2em;
+      cursor: pointer;
+      z-index: 1001;
+    }
+
+    #adminPanel {
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 280px;
+      height: 100%;
+      background: white;
+      border-right: 1px solid #ccc;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      padding: 1.2em;
+      z-index: 1000;
+      transition: left 0.3s ease;
+    }
+
+    #adminPanel a {
+      color: #0088cc;
+      text-decoration: none;
+    }
+
+    #adminPanel ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 1em;
+    }
+
+    #adminPanel li {
+      margin-bottom: 1em;
+    }
+  </style>
+</head>
+<body>
+
+  {% if request.session.telegram_id|is_admin %}
+    <button id="adminToggle" title="Админ-панель">🧠</button>
+    <div id="adminPanel">
+      <h3 style="margin-top: 0;">Управление моделями</h3>
+      <ul>
+        <li><a href="/admin-panel/models/">Модели</a></li>
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="header">
+    <h2>Диалоги</h2>
+    <button class="btn-create" onclick="showDialogForm()">+ Диалог</button>
+  </div>
+
+  <div class="dialogs">
+    {% for dialog in dialogs %}
+      <a href="/dialog/{{ dialog.id }}/" class="dialog">
+        <h3>{{ dialog.title }}</h3>
+        <small>Обновлён: {{ dialog.updated_at|date:"d.m.Y H:i" }}</small>
+      </a>
+    {% empty %}
+      <p>У вас пока нет диалогов.</p>
+    {% endfor %}
+  </div>
+
+  <div class="bottom-nav">
+    <a href="/dialogs/" class="active">Диалоги</a>
+    <a href="/projects/">Проекты</a>
+  </div>
+
+  <div id="dialogForm" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 40px;">
+    <div style="background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px;">
+      <h3>Новый диалог</h3>
+      <input id="dialogTitle" type="text" placeholder="Название *" style="width: 100%; margin-bottom: 10px; padding: 8px;" required>
+      <textarea id="dialogDescription" placeholder="Описание (необязательно)" style="width: 100%; padding: 8px; margin-bottom: 10px;"></textarea>
+      <select id="dialogModel" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        {% for model in models %}
+          <option value="{{ model.id }}">{{ model.name }}</option>
+        {% endfor %}
+      </select>
+      <div style="display: flex; justify-content: space-between;">
+        <button onclick="hideDialogForm()" style="padding: 8px 16px;">Назад</button>
+        <button onclick="submitDialog()" style="padding: 8px 16px; background: #0088cc; color: white; border: none; border-radius: 5px;">Создать</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showDialogForm() {
+      document.getElementById("dialogForm").style.display = "flex";
+    }
+
+    function hideDialogForm() {
+      document.getElementById("dialogForm").style.display = "none";
+    }
+
+    function submitDialog() {
+      const title = document.getElementById("dialogTitle").value.trim();
+      const description = document.getElementById("dialogDescription").value.trim();
+      const model_id = document.getElementById("dialogModel").value;
+
+      if (!title) {
+        alert("Пожалуйста, введите название диалога");
+        return;
+      }
+
+      fetch("/dialogs/create/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({ title, description, model_id })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert("Ошибка при создании");
+        }
+      })
+      .catch(() => alert("Ошибка сети"));
+    }
+
+    function getCookie(name) {
+      let value = "; " + document.cookie;
+      let parts = value.split("; " + name + "=");
+      if (parts.length === 2) return parts.pop().split(";").shift();
+    }
+
+    {% if request.session.telegram_id|is_admin %}
+    const toggle = document.getElementById("adminToggle");
+    const panel = document.getElementById("adminPanel");
+    toggle.addEventListener("click", () => {
+      const isOpen = panel.style.left === "0px";
+      panel.style.left = isOpen ? "-280px" : "0px";
+    });
+    {% endif %}
+  </script>
+</body>
+</html>

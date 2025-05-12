@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Админка{% endblock %}
+{% block header_title %}Админ панель{% endblock %}
+
+{% block content %}
+  <h3>Управление моделями</h3>
+
+  <!-- ✅ Форма создания новой модели -->
+  <form id="createForm" style="margin-bottom: 1em;">
+    <input type="text" name="name" placeholder="Название модели" required>
+    <input type="text" name="provider" placeholder="Провайдер" required>
+    <input type="text" name="endpoint" placeholder="Endpoint URL" required>
+    <button type="submit">Создать</button>
+  </form>
+
+  <!-- 🔁 Список существующих моделей -->
+  <ul style="padding: 0;">
+    {% for model in models %}
+      <li style="margin-bottom: 1em; list-style: none; background: #fff; padding: 1em; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <form onsubmit="updateModel(event, '{{ model.id }}')">
+          <input type="text" name="name" value="{{ model.name }}" required>
+          <input type="text" name="provider" value="{{ model.provider }}" required>
+          <input type="text" name="endpoint" value="{{ model.endpoint }}" required>
+          <label style="margin-left: 10px;">
+            <input type="checkbox" name="is_active" {% if model.is_active %}checked{% endif %}>
+            Активна
+          </label>
+          <button type="submit">💾</button>
+          <button type="button" onclick="deleteModel('{{ model.id }}')">🗑️</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById("createForm").onsubmit = function(e) {
+  e.preventDefault();
+  const form = e.target;
+  fetch("{% url 'admin_model_create' %}", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify({
+      name: form.name.value,
+      provider: form.provider.value,
+      endpoint: form.endpoint.value
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) location.reload();
+    else alert(data.error || "Ошибка создания");
+  });
+};
+
+function updateModel(e, modelId) {
+  e.preventDefault();
+  const form = e.target;
+  const is_active = form.is_active.checked;
+
+  fetch(`/admin-panel/update-model/${modelId}/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify({
+      name: form.name.value,
+      provider: form.provider.value,
+      endpoint: form.endpoint.value,
+      is_active
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.success) alert(data.error || "Ошибка обновления");
+  });
+}
+
+function deleteModel(modelId) {
+  fetch(`/admin-panel/delete-model/${modelId}/`, {
+    method: "POST",
+    headers: {
+      "X-CSRFToken": getCookie("csrftoken")
+    }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) location.reload();
+    else alert("Ошибка удаления");
+  });
+}
+
+function getCookie(name) {
+  let value = "; " + document.cookie;
+  let parts = value.split("; " + name + "=");
+  if (parts.length === 2) return parts.pop().split(";").shift();
+}
+</script>
+{% endblock %}

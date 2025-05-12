@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }}{% endblock %}
+{% block header_title %}{{ project.title }}{% endblock %}
+{% block header_button %}
+  <button class="btn-create" onclick="showDialogForm()">+ Диалог</button>
+  <button class="btn-create" onclick="showMemberForm()">+ Участник</button>
+{% endblock %}
+
+{% block content %}
+  {% if project.description %}
+    <p style="padding: 0 1em; color: #666;"><em>{{ project.description }}</em></p>
+  {% endif %}
+
+  <div class="dialogs">
+    {% for dialog in dialogs %}
+      <a href="/dialog/{{ dialog.id }}/" class="dialog" style="text-decoration: none; color: inherit;">
+        <h3>{{ dialog.title }}</h3>
+        <small>Обновлён: {{ dialog.updated_at|date:"d.m.Y H:i" }}</small>
+      </a>
+    {% empty %}
+      <p style="padding: 0 1em;">Нет диалогов в этом проекте.</p>
+    {% endfor %}
+  </div>
+
+  <!-- Диалог создания -->
+  <div id="dialogForm" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+       background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 40px;">
+    <div style="background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px;">
+      <h3>Новый диалог</h3>
+      <input id="dialogTitle" type="text" placeholder="Название *" style="width: 100%; margin-bottom: 10px; padding: 8px;" required>
+      <textarea id="dialogDescription" placeholder="Описание (необязательно)" style="width: 100%; padding: 8px; margin-bottom: 10px;"></textarea>
+      <select id="dialogModel" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        {% for model in models %}
+          <option value="{{ model.id }}">{{ model.name }}</option>
+        {% endfor %}
+      </select>
+      <div style="display: flex; justify-content: space-between;">
+        <button onclick="hideDialogForm()" style="padding: 8px 16px;">Назад</button>
+        <button onclick="submitDialog()" style="padding: 8px 16px; background: #0088cc; color: white; border: none; border-radius: 5px;">Создать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модалка добавления участника -->
+  <div id="memberForm" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+       background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 40px;">
+    <div style="background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px;">
+      <h3>Добавить участника</h3>
+      <input type="text" id="searchTelegramId" placeholder="Telegram ID"
+             style="padding: 0.5em; width: 100%; margin-bottom: 10px;">
+      <div id="searchResult" style="margin-top: 1em; text-align: center;"></div>
+      <div style="display: flex; justify-content: space-between; margin-top: 1em;">
+        <button onclick="hideMemberForm()" style="padding: 8px 16px;">Закрыть</button>
+        <button onclick="searchUser()" style="padding: 8px 16px; background: #0088cc; color: white; border: none; border-radius: 5px;">Найти</button>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function getCookie(name) {
+    let value = "; " + document.cookie;
+    let parts = value.split("; " + name + "=");
+    if (parts.length === 2) return parts.pop().split(";").shift();
+  }
+
+  function showDialogForm() {
+    document.getElementById("dialogForm").style.display = "flex";
+  }
+
+  function hideDialogForm() {
+    document.getElementById("dialogForm").style.display = "none";
+  }
+
+  function submitDialog() {
+    const title = document.getElementById("dialogTitle").value.trim();
+    const description = document.getElementById("dialogDescription").value.trim();
+    const model_id = document.getElementById("dialogModel").value;
+
+    if (!title) {
+      alert("Пожалуйста, введите название диалога");
+      return;
+    }
+
+    fetch("/dialogs/create/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: JSON.stringify({
+        title,
+        description,
+        model_id,
+        project_id: "{{ project.id }}"
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert(data.error || "Ошибка при создании диалога");
+      }
+    })
+    .catch(() => alert("Ошибка сети"));
+  }
+
+  function showMemberForm() {
+    document.getElementById("memberForm").style.display = "flex";
+    document.getElementById("searchTelegramId").value = "";
+    document.getElementById("searchResult").innerHTML = "";
+  }
+
+  function hideMemberForm() {
+    document.getElementById("memberForm").style.display = "none";
+  }
+
+  function searchUser() {
+    const telegramId = document.getElementById("searchTelegramId").value.trim();
+    if (!telegramId) return;
+
+    fetch(`/projects/{{ project.id }}/search_user/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: JSON.stringify({ telegram_id: telegramId })
+    })
+    .then(res => res.json())
+    .then(data => {
+      const div = document.getElementById("searchResult");
+      if (data.success) {
+        div.innerHTML = `
+          <p>Найден: ${data.username}</p>
+          <div style="margin-top: 10px;">
+            <button onclick="addUserToProject('${data.user_id}')" style="padding: 8px 16px; background: #0088cc; color: white; border: none; border-radius: 5px;">Добавить</button>
+          </div>
+        `;
+      } else {
+        div.textContent = data.error || "Ошибка";
+      }
+    });
+  }
+
+  function addUserToProject(userId) {
+    fetch(`/projects/{{ project.id }}/add_member/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: JSON.stringify({ user_id: userId })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert("Пользователь добавлен");
+        location.reload();
+      } else {
+        alert(data.error || "Ошибка");
+      }
+    });
+  }
+</script>
+{% endblock %}

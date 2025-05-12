@@ -1,0 +1,194 @@
+{% load static %}
+{% load custom_tags %}  {# фильтр is_admin должен быть в templatetags/custom_tags.py #}
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}GenAI{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f9f9f9;
+    }
+
+    .header {
+      padding: 1em;
+      background: #0088cc;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h2 {
+      margin: 0;
+      font-size: 1.2em;
+    }
+
+    .btn-create {
+      background: white;
+      color: #0088cc;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1em;
+    }
+
+    .bottom-nav {
+      display: flex;
+      border-top: 1px solid #ccc;
+      background: #fff;
+    }
+
+    .bottom-nav a {
+      flex: 1;
+      text-align: center;
+      padding: 0.7em;
+      text-decoration: none;
+      color: #333;
+      font-size: 0.95em;
+    }
+
+    .bottom-nav a.active {
+      color: #0088cc;
+      font-weight: bold;
+    }
+
+    .dialogs {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1em;
+    }
+
+    .dialog {
+      display: block;
+      background: white;
+      padding: 1em;
+      margin-bottom: 0.8em;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .dialog h3 {
+      margin: 0 0 0.3em 0;
+      font-size: 1em;
+    }
+
+    .dialog:hover {
+      background: #f0faff;
+    }
+
+    .dialog small {
+      color: #666;
+    }
+
+    /* 🔧 Admin Panel */
+    #adminToggle {
+      position: fixed;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #0088cc;
+      color: white;
+      border: none;
+      padding: 0.7em 1em;
+      border-radius: 0 6px 6px 0;
+      font-size: 1.2em;
+      cursor: pointer;
+      z-index: 1001;
+    }
+
+    #adminPanel {
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 280px;
+      height: 100%;
+      background: white;
+      border-right: 1px solid #ccc;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      padding: 1.2em;
+      z-index: 1000;
+      transition: left 0.3s ease;
+    }
+
+    #adminPanel a {
+      color: #0088cc;
+      text-decoration: none;
+    }
+
+    #adminPanel ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 1em;
+    }
+
+    #adminPanel li {
+      margin-bottom: 1em;
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  {% if request.session.telegram_id|is_admin %}
+    <!-- 🔧 Кнопка открытия админ-панели -->
+    <button id="adminToggle" title="Админ-панель">🧠</button>
+
+    <!-- 📋 Сама панель -->
+    <div id="adminPanel">
+      <h3 style="margin-top: 0;">Управление моделями</h3>
+      <ul>
+        <li><a href="/admin-panel/models/">Модели</a></li>
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="header">
+    <h2>{% block header_title %}GenAI{% endblock %}</h2>
+    {% block header_button %}{% endblock %}
+  </div>
+
+  <div class="main-content">
+    {% block content %}{% endblock %}
+  </div>
+
+  <div class="bottom-nav">
+    <a href="/dialogs/" class="{% if '/dialogs/' in request.path %}active{% endif %}">Диалоги</a>
+    <a href="/projects/" class="{% if '/projects/' in request.path %}active{% endif %}">Проекты</a>
+  </div>
+
+  {% block extra_scripts %}{% endblock %}
+
+  {% if request.session.telegram_id|is_admin %}
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggle = document.getElementById("adminToggle");
+      const panel = document.getElementById("adminPanel");
+
+      toggle.addEventListener("click", () => {
+        const isOpen = panel.style.left === "0px";
+        panel.style.left = isOpen ? "-280px" : "0px";
+      });
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Админ-панель{% endblock %}
+{% block header_title %}Управление моделями{% endblock %}
+
+{% block content %}
+  <ul>
+    {% for model in models %}
+      <li>
+        <b>{{ model.name }}</b> —
+        {% if model.is_active %}<span style="color:green;">Активна</span>{% else %}<span style="color:red;">Неактивна</span>{% endif %}
+        <form method="post" action="/admin/models/{{ model.id }}/toggle/" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit">Вкл/Выкл</button>
+        </form>
+        <a href="/admin/models/{{ model.id }}/edit/">✏️</a>
+        <a href="/admin/models/{{ model.id }}/delete/">🗑</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
