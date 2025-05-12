@@ -28,23 +28,18 @@ GenAI — это веб-приложение на Django с Telegram WebApp-ин
 
 ## База данных
 
-По умолчанию используется **SQLite**. Если нужна PostgreSQL, она поддерживается в docker-compose:
-
-```bash
-DATABASE_URL=postgres://postgres:postgres@db:5432/genai
-```
+По умолчанию используется **SQLite**. 
 
 ---
 
 ## Установка (Django + бот)
 
 ```bash
-git clone https://github.com/your-username/genai.git
+git clone https://github.com/LennyDzho/ZeroCode.git
 cd genai
 python -m venv .venv
 source .venv/bin/activate  # или .venv\Scripts\activate для Windows
 pip install -r requirements.txt
-cp .env.example .env
 ```
 
 Запуск:
