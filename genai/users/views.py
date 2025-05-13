@@ -104,7 +104,7 @@ class DialogsView(View):
         return render(request, "users/dialogs.html", {
             "user": user,
             "dialogs": dialogs,
-            "models": models  # ✅ добавляем модели в шаблон
+            "models": models
         })
 
 

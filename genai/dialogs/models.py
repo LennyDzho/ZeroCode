@@ -7,7 +7,7 @@ from projects.models import Project
 class Dialog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    model = models.ForeignKey(Model, on_delete=models.SET_NULL, null=True)
+    model = models.ForeignKey(Model, on_delete=models.SET_NULL, null=True, blank=True)
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True)
     title = models.CharField(max_length=255, default="Новый диалог")
     created_at = models.DateTimeField(auto_now_add=True)
