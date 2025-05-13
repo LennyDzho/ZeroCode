@@ -19,6 +19,4 @@ services:
     command: python bot.py
     volumes:
       - .:/app
-    environment:
-      - BOT_TOKEN=${BOT_TOKEN}
-      - WEBAPP_URL=${WEBAPP_URL}
+
