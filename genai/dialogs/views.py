@@ -158,12 +158,8 @@ class SendMessageView(View):
 
         dialog = get_object_or_404(Dialog.objects.select_related("project"), id=dialog_id)
 
-        # 🔒 Проверка: владелец или участник проекта
         is_owner = dialog.user == user
-        is_member = dialog.project and ProjectMember.objects.filter(
-            project=dialog.project,
-            user=user
-        ).exists()
+        is_member = dialog.project and ProjectMember.objects.filter(project=dialog.project, user=user).exists()
 
         if not is_owner and not is_member:
             return JsonResponse({"success": False, "error": "Access denied"}, status=403)
@@ -176,7 +172,6 @@ class SendMessageView(View):
 
         last_order = dialog.messages.aggregate(max=Max("order"))["max"] or 0
 
-
         user_msg = Message.objects.create(
             dialog=dialog,
             role="user",
@@ -184,7 +179,7 @@ class SendMessageView(View):
             order=last_order + 1
         )
 
-        # вызов модели и ответ
+        # вызываем модель
         history = list(dialog.messages.order_by("order").values("role", "content"))
         response = call_openrouter_model(dialog.model, history)
 
@@ -195,7 +190,19 @@ class SendMessageView(View):
             order=last_order + 2
         )
 
-        return JsonResponse({"success": True, "response": response})
+        return JsonResponse({
+            "success": True,
+            "reply": {
+                "id": str(model_msg.id),
+                "content": model_msg.content,
+                "role": model_msg.role
+            },
+            "user_msg": {
+                "id": str(user_msg.id),
+                "content": user_msg.content,
+                "role": user_msg.role
+            }
+        })
 
 
 @method_decorator(csrf_exempt, name='dispatch')

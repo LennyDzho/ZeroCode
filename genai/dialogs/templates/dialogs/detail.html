@@ -146,7 +146,7 @@
             </div>
           </div>
           <div style="margin-top: 8px;">
-            <button class="edit-btn" onclick="toggleEditForm('{{ msg.id }}')">✏️ Редактировать</button>
+            <button class="edit-btn" onclick="toggleEditForm('{{ msg.id }}')">✏️</button>
           </div>
         {% endif %}
       </div>
@@ -161,30 +161,110 @@
   </div>
 
   <script>
-    function sendMessage() {
-      const input = document.getElementById("messageInput");
-      const content = input.value.trim();
-      if (!content) return;
+function sendMessage() {
+  const input = document.getElementById("messageInput");
+  const content = input.value.trim();
+  if (!content) return;
 
-      input.value = "";
+  input.value = "";
 
-      fetch(`/dialog/{{ dialog.id }}/send/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCookie("csrftoken")
-        },
-        body: JSON.stringify({ content })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          window.location.reload();
-        } else {
-          alert("Ошибка: " + (data.error || "неизвестная"));
-        }
-      });
+  // Заглушки до получения ID
+  const tempUserId = "user-temp-" + Date.now();
+  const tempModelId = "model-thinking-" + Date.now();
+
+  renderMessage(tempUserId, content, "user");
+  renderMessage(tempModelId, "Модель готовит ответ...", "model");
+
+  fetch(`/dialog/{{ dialog.id }}/send/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify({ content })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      // Обновляем ID и содержимое user-сообщения
+      const userEl = document.getElementById(`msg-${tempUserId}`);
+      if (userEl) {
+        userEl.id = `msg-${data.user_msg.id}`;
+        userEl.dataset.id = data.user_msg.id;
+        document.getElementById(`text-${tempUserId}`).id = `text-${data.user_msg.id}`;
+        document.getElementById(`edit-form-${tempUserId}`).id = `edit-form-${data.user_msg.id}`;
+        document.getElementById(`edit-input-${tempUserId}`).id = `edit-input-${data.user_msg.id}`;
+      }
+
+      // Обновляем модельный ответ
+      const modelEl = document.getElementById(`text-${tempModelId}`);
+      if (modelEl) {
+        modelEl.textContent = data.reply.content;
+        document.getElementById(`msg-${tempModelId}`).id = `msg-${data.reply.id}`;
+        modelEl.id = `text-${data.reply.id}`;
+      }
+    } else {
+      alert("Ошибка: " + (data.error || "неизвестная"));
     }
+  });
+}
+
+
+
+  function renderMessage(id, content, role) {
+  const container = document.getElementById("messages");
+
+  const msg = document.createElement("div");
+  msg.className = `msg ${role}`;
+  msg.id = `msg-${id}`;
+  msg.dataset.id = id;
+
+  const text = document.createElement("span");
+  text.id = `text-${id}`;
+  text.textContent = content;
+  msg.appendChild(text);
+
+  if (role === "user") {
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "✏️";
+    editBtn.className = "edit-btn";
+    editBtn.onclick = () => toggleEditForm(id);
+
+    const form = document.createElement("div");
+    form.className = "edit-form";
+    form.id = `edit-form-${id}`;
+
+    const textarea = document.createElement("textarea");
+    textarea.id = `edit-input-${id}`;
+    textarea.value = content;
+    textarea.oninput = () => autoResize(textarea);
+    form.appendChild(textarea);
+
+    const actions = document.createElement("div");
+    actions.className = "edit-actions";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Сохранить";
+    saveBtn.onclick = () => confirmEdit(id);
+    actions.appendChild(saveBtn);
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Отмена";
+    cancelBtn.className = "cancel-btn";
+    cancelBtn.onclick = () => cancelEdit(id);
+    actions.appendChild(cancelBtn);
+
+    form.appendChild(actions);
+
+    msg.appendChild(form);
+    msg.appendChild(editBtn);
+  }
+
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+
 
     function toggleEditForm(id) {
       const form = document.getElementById(`edit-form-${id}`);
@@ -201,28 +281,56 @@
       text.style.display = 'inline';
     }
 
-    function confirmEdit(id) {
-      const textarea = document.getElementById(`edit-input-${id}`);
-      const content = textarea.value.trim();
-      if (!content) return;
+function confirmEdit(id) {
+  const textarea = document.getElementById(`edit-input-${id}`);
+  const content = textarea.value.trim();
+  if (!content) return;
 
-      fetch(`/dialog/{{ dialog.id }}/edit/${id}/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCookie("csrftoken")
-        },
-        body: JSON.stringify({ content })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          window.location.reload();
-        } else {
-          alert("Ошибка при редактировании");
-        }
-      });
+  // Обновляем текст сразу
+  const textEl = document.getElementById(`text-${id}`);
+  if (textEl) textEl.textContent = content;
+
+  cancelEdit(id);
+
+  // Удаляем все последующие сообщения
+  let deleteStarted = false;
+  const messagesContainer = document.getElementById("messages");
+  const children = Array.from(messagesContainer.children);
+
+  for (const msg of children) {
+    const msgId = msg.dataset.id;
+    if (deleteStarted) {
+      msg.remove();
+    } else if (msgId === id) {
+      deleteStarted = true;
     }
+  }
+
+  // Добавляем заглушку для ответа модели
+  const modelPlaceholderId = `model-thinking-${Date.now()}`;
+  renderMessage(modelPlaceholderId, "Модель готовит ответ...", "model");
+
+  // Запрос на сервер
+  fetch(`/dialog/{{ dialog.id }}/edit/${id}/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify({ content })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success && data.response) {
+        const placeholder = document.getElementById(`text-${modelPlaceholderId}`);
+        if (placeholder) placeholder.textContent = data.response;
+      } else {
+        alert("Ошибка: " + (data.error || "при ответе модели"));
+      }
+    });
+}
+
+
 
     function autoResize(el) {
       el.style.height = 'auto';
