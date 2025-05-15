@@ -5,7 +5,8 @@
   <meta charset="UTF-8">
   <title>{{ dialog.title }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -40,6 +41,7 @@
     .messages {
       flex: 1;
       overflow-y: auto;
+      overflow-x: auto;
       padding: 1em;
       display: flex;
       flex-direction: column;
@@ -104,17 +106,22 @@
       background: #999;
     }
     .input-bar {
+      position: relative; /* для позиционирования dropdown */
       display: flex;
+      align-items: center;
       padding: 1em;
-      border-top: 1px solid #ccc;
       background: white;
+      border-top: 1px solid #ccc;
+      z-index: 10;
     }
+
     .input-bar input {
       flex: 1;
       padding: 0.5em;
       border: 1px solid #ccc;
       border-radius: 6px;
     }
+
     .input-bar button {
       margin-left: 10px;
       background: #0088cc;
@@ -124,6 +131,92 @@
       border-radius: 6px;
       cursor: pointer;
     }
+    .model-dropdown {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      right: 0; /* растянуть по ширине кнопки */
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: none;
+      flex-direction: column;
+      min-width: 180px;
+      z-index: 9999; /* повыше */
+    }
+
+    .model-selector > button {
+      margin-left: 10px;
+      background: #0088cc;
+      color: white;
+      border: none;
+      padding: 0.5em 1em;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: normal;
+      height: 100%;
+    }
+    .input-bar input,
+    .input-bar button,
+    .model-selector > button {
+      height: auto;
+      display: flex;
+      align-items: center;
+    }
+    .model-dropdown.show {
+      display: flex;
+    }
+
+    .model-dropdown div {
+      padding: 0.5em 1em;
+      cursor: pointer;
+    }
+    .model-dropdown .selected-model {
+      background: #0088cc;
+      color: white;
+      font-weight: bold;
+    }
+
+    .model-dropdown div:hover {
+      background: #f0f0f0;
+    }
+     .loader {
+        width: 60px;
+        height: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 10px 0;
+      }
+
+      .loader span {
+        width: 10px;
+        height: 10px;
+        background: #999;
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+
+      .loader span:nth-child(1) {
+        animation-delay: -0.32s;
+      }
+      .loader span:nth-child(2) {
+        animation-delay: -0.16s;
+      }
+      .loader span:nth-child(3) {
+        animation-delay: 0;
+      }
+
+      @keyframes bounce {
+        0%, 80%, 100% {
+          transform: scale(0);
+        }
+        40% {
+          transform: scale(1);
+        }
+      }
+
   </style>
 </head>
 <body>
@@ -136,7 +229,7 @@
   <div class="messages" id="messages">
     {% for msg in messages %}
       <div class="msg {{ msg.role }}" data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
-        <span id="text-{{ msg.id }}">{{ msg.content }}</span>
+        <span id="text-{{ msg.id }}" class="message-content">{{ msg.content }}</span>
         {% if msg.role == 'user' %}
           <div class="edit-form" id="edit-form-{{ msg.id }}">
             <textarea id="edit-input-{{ msg.id }}" oninput="autoResize(this)">{{ msg.content }}</textarea>
@@ -157,8 +250,22 @@
 
   <div class="input-bar">
     <input type="text" id="messageInput" placeholder="Введите сообщение...">
+    <div class="model-selector">
+      <button id="currentModelName" onclick="toggleModelDropdown()">
+        🔧
+      </button>
+      <div class="model-dropdown" id="modelDropdown">
+        {% for model in models %}
+          <div onclick="changeModel('{{ model.id }}', '{{ model.name }}')"
+            class="{% if model.id == dialog.model.id %}selected-model{% endif %}">
+            {{ model.name }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
     <button id="sendButton" onclick="sendMessage()">Отправить</button>
   </div>
+
 
   <script>
 function sendMessage() {
@@ -173,7 +280,8 @@ function sendMessage() {
   const tempModelId = "model-thinking-" + Date.now();
 
   renderMessage(tempUserId, content, "user");
-  renderMessage(tempModelId, "Модель готовит ответ...", "model");
+  renderMessage(tempModelId, "loading", "model");
+
 
   fetch(`/dialog/{{ dialog.id }}/send/`, {
     method: "POST",
@@ -181,37 +289,63 @@ function sendMessage() {
       "Content-Type": "application/json",
       "X-CSRFToken": getCookie("csrftoken")
     },
-    body: JSON.stringify({ content })
+    body: JSON.stringify({ content, model_id: selectedModelId })
   })
   .then(res => res.json())
   .then(data => {
-    if (data.success) {
-      // Обновляем ID и содержимое user-сообщения
-      const userEl = document.getElementById(`msg-${tempUserId}`);
-      if (userEl) {
-        userEl.id = `msg-${data.user_msg.id}`;
-        userEl.dataset.id = data.user_msg.id;
-        document.getElementById(`text-${tempUserId}`).id = `text-${data.user_msg.id}`;
-        document.getElementById(`edit-form-${tempUserId}`).id = `edit-form-${data.user_msg.id}`;
-        document.getElementById(`edit-input-${tempUserId}`).id = `edit-input-${data.user_msg.id}`;
-      }
+  if (data.success) {
+    document.getElementById(`msg-${tempUserId}`)?.remove();
+    document.getElementById(`msg-${tempModelId}`)?.remove();
 
-      // Обновляем модельный ответ
-      const modelEl = document.getElementById(`text-${tempModelId}`);
-      if (modelEl) {
-        modelEl.textContent = data.reply.content;
-        document.getElementById(`msg-${tempModelId}`).id = `msg-${data.reply.id}`;
-        modelEl.id = `text-${data.reply.id}`;
-      }
-    } else {
-      alert("Ошибка: " + (data.error || "неизвестная"));
+    renderMessage(data.user_msg.id, data.user_msg.content, "user");
+    renderMessage(data.reply.id, data.reply.content, "model");
+  } else {
+    alert("Ошибка: " + (data.error || "неизвестная"));
+  }
+});
+}
+
+let selectedModelId = "{{ dialog.model.id }}";
+
+function toggleModelDropdown() {
+  const dropdown = document.getElementById("modelDropdown");
+  dropdown.classList.toggle("show");
+}
+
+function changeModel(id, name) {
+  selectedModelId = id;
+
+  document.getElementById("currentModelName").textContent = `🔧`;
+
+  document.getElementById("modelDropdown").classList.remove("show");
+
+  // Сбросить все выделения
+  document.querySelectorAll("#modelDropdown .selected-model").forEach(el => {
+    el.classList.remove("selected-model");
+  });
+
+  const items = document.querySelectorAll("#modelDropdown div");
+  items.forEach(div => {
+    if (div.textContent.trim() === name) {
+      div.classList.add("selected-model");
     }
+  });
+
+  fetch(`/dialog/{{ dialog.id }}/set_model/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify({ model_id: id })
+  }).then(res => {
+    if (!res.ok) alert("Ошибка при смене модели");
   });
 }
 
 
 
-  function renderMessage(id, content, role) {
+function renderMessage(id, content, role) {
   const container = document.getElementById("messages");
 
   const msg = document.createElement("div");
@@ -221,15 +355,24 @@ function sendMessage() {
 
   const text = document.createElement("span");
   text.id = `text-${id}`;
-  text.textContent = content;
+  text.className = "message-content";
+
+  // Поддержка Markdown и анимации загрузки
+  if (role === "model" && content === "loading") {
+    const loader = document.createElement("div");
+    loader.className = "loader";
+    loader.innerHTML = `<span></span><span></span><span></span>`;
+    text.appendChild(loader);
+  } else if (role === "model") {
+    text.innerHTML = marked.parse(content);
+  } else {
+    text.textContent = content;
+  }
+
   msg.appendChild(text);
 
   if (role === "user") {
-    const editBtn = document.createElement("button");
-    editBtn.textContent = "✏️";
-    editBtn.className = "edit-btn";
-    editBtn.onclick = () => toggleEditForm(id);
-
+    // Форма редактирования
     const form = document.createElement("div");
     form.className = "edit-form";
     form.id = `edit-form-${id}`;
@@ -255,14 +398,26 @@ function sendMessage() {
     actions.appendChild(cancelBtn);
 
     form.appendChild(actions);
-
     msg.appendChild(form);
-    msg.appendChild(editBtn);
+
+    // Кнопка редактирования
+    const editWrapper = document.createElement("div");
+    editWrapper.style.marginTop = "8px";
+
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "✏️";
+    editBtn.className = "edit-btn";
+    editBtn.onclick = () => toggleEditForm(id);
+    editWrapper.appendChild(editBtn);
+
+    msg.appendChild(editWrapper);
   }
 
   container.appendChild(msg);
   container.scrollTop = container.scrollHeight;
 }
+
+
 
 
 
@@ -306,11 +461,11 @@ function confirmEdit(id) {
     }
   }
 
-  // Добавляем заглушку для ответа модели
+  // Добавляем заглушку
   const modelPlaceholderId = `model-thinking-${Date.now()}`;
-  renderMessage(modelPlaceholderId, "Модель готовит ответ...", "model");
+  renderMessage(modelPlaceholderId, "loading", "model");
 
-  // Запрос на сервер
+
   fetch(`/dialog/{{ dialog.id }}/edit/${id}/`, {
     method: "POST",
     headers: {
@@ -323,13 +478,21 @@ function confirmEdit(id) {
     .then(data => {
       if (data.success && data.response) {
         const placeholder = document.getElementById(`text-${modelPlaceholderId}`);
-        if (placeholder) placeholder.textContent = data.response;
+        if (placeholder) {
+          placeholder.innerHTML = marked.parse(data.response);
+        }
       } else {
         alert("Ошибка: " + (data.error || "при ответе модели"));
       }
     });
 }
 
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".msg.model .message-content").forEach(span => {
+      span.innerHTML = marked.parse(span.textContent);
+    });
+  });
 
 
     function autoResize(el) {

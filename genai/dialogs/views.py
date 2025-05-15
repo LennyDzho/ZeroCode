@@ -107,12 +107,13 @@ class DialogDetailView(View):
         messages = dialog.messages.all()
         return render(request, "dialogs/detail.html", {
             "dialog": dialog,
-            "messages": messages
+            "messages": messages,
+            "models": Model.objects.filter(is_active=True)
         })
 
 
 
-def call_openrouter_model(model, history):
+def call_openrouter_model(model, history, project_description=None):
     """
     Отправка истории в выбранную модель через OpenRouter API
     """
@@ -124,7 +125,13 @@ def call_openrouter_model(model, history):
         "Content-Type": "application/json"
     }
 
-    messages = [
+    messages = []
+    if project_description:
+        messages.append({
+            "role": "system",
+            "content": project_description.strip()
+        })
+    messages += [
         {"role": msg["role"], "content": msg["content"]}
         for msg in history
     ]
@@ -181,7 +188,7 @@ class SendMessageView(View):
 
         # вызываем модель
         history = list(dialog.messages.order_by("order").values("role", "content"))
-        response = call_openrouter_model(dialog.model, history)
+        response = call_openrouter_model(dialog.model, history, project_description=dialog.project.description if dialog.project else None)
 
         model_msg = Message.objects.create(
             dialog=dialog,
@@ -237,7 +244,7 @@ class EditMessageView(View):
 
         # Вызов модели
         try:
-            response_text = call_openrouter_model(dialog.model, history)
+            response_text = call_openrouter_model(dialog.model, history, project_description=dialog.project.description if dialog.project else None)
         except Exception as e:
             return JsonResponse({"success": False, "error": f"Ошибка модели: {str(e)}"}, status=500)
 
@@ -250,3 +257,24 @@ class EditMessageView(View):
         )
 
         return JsonResponse({"success": True, "response": response_text})
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SetModelView(View):
+    def post(self, request, dialog_id):
+        data = json.loads(request.body)
+        model_id = data.get("model_id")
+
+        telegram_id = request.session.get("telegram_id")
+        if not telegram_id:
+            return JsonResponse({"success": False, "error": "Not authorized"}, status=403)
+
+        user = get_object_or_404(User, telegram_id=telegram_id)
+        dialog = get_object_or_404(Dialog, id=dialog_id, user=user)
+
+        try:
+            model = Model.objects.get(id=model_id, is_active=True)
+            dialog.model = model
+            dialog.save()
+            return JsonResponse({"success": True})
+        except Model.DoesNotExist:
+            return JsonResponse({"success": False, "error": "Invalid model"}, status=404)

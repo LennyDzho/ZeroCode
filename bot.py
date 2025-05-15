@@ -27,7 +27,8 @@ async def send_webapp_button(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Открыть WebApp", web_app=WebAppInfo(url=WEBAPP_URL))],
     ])
-    await message.answer("Нажми кнопку ниже, чтобы открыть приложение", reply_markup=keyboard)
+    await message.answer("<b>Нажми кнопку ниже, чтобы открыть приложение</b>\n\n"
+                         "<b><i>Домен может обновляться, поэтому перед запуском пропишите /start для получения актуальной ссылки.</i></b>", reply_markup=keyboard)
 
 async def main():
     await dp.start_polling(bot)

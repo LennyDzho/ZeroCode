@@ -14,6 +14,8 @@ from projects.views import InviteToProjectView
 
 from projects.views import AddProjectMemberView
 
+from dialogs.views import SetModelView
+
 urlpatterns = [
     path('', TelegramEntryView.as_view(), name='entry'),
     path('auth/telegram/', TelegramAuthView.as_view(), name='telegram_auth'),
@@ -31,6 +33,7 @@ urlpatterns = [
     path("admin-panel/", AdminDashboardView.as_view(), name="admin_panel"),
     path("admin-panel/create-model/", AdminModelCreateView.as_view(), name="admin_model_create"),
     path("admin-panel/delete-model/<uuid:model_id>/", AdminModelDeleteView.as_view(), name="admin_model_delete"),
+    path("dialog/<uuid:dialog_id>/set_model/", SetModelView.as_view(), name="set_model"),
 
 ]
 
