@@ -1,3 +1,11 @@
+# Видео работы
+
+видео работы доступно по ссылке:
+https://drive.google.com/file/d/1KxYsBjkiLbpy8eNWJoiM7DHb0s2iAVeu/view?usp=drivesdk
+
+
+---
+
 # GenAI WebApp
 
 GenAI — это веб-приложение на Django с Telegram WebApp-интерфейсом и Telegram-ботом на aiogram. Система позволяет пользователям создавать проекты и вести диалоги с языковыми моделями.
